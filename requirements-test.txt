@@ -1,0 +1,6 @@
+# Test-only dependency: used purely to generate signed JWT fixtures in
+# tests/test_jwtlint.py so we don't have to hand-roll HMAC bytes for every
+# test case. jwtlint itself (the jwtlint/ package) has zero JWT-library
+# dependency — its parsing and signature verification are its own code.
+pytest>=8.0
+PyJWT>=2.8

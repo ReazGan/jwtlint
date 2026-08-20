@@ -1,0 +1,20 @@
+[project]
+name = "jwtlint"
+version = "0.1.0"
+description = "Offline static security analysis for JWTs."
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "click>=8.1",
+    "rich>=13.7",
+]
+
+[project.scripts]
+jwtlint = "jwtlint.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["jwtlint*"]
