@@ -2,6 +2,7 @@
 
     jwtlint <token>                        decode + analyze a token
     jwtlint --file token.txt               read the token from a file
+    echo <token> | jwtlint                 read the token from stdin
     jwtlint <token> --expect-alg RS256     flag RS-to-HS confusion risk
     jwtlint <token> --crack                try the built-in weak-secret wordlist
     jwtlint <token> --crack wordlist.txt   try a custom wordlist
@@ -86,11 +87,24 @@ def main(
 def _resolve_token(token: str | None, file_path: str | None) -> str:
     if file_path:
         with open(file_path) as fh:
-            return fh.read().strip()
-    if token:
-        return token.strip()
-    console.print("[bold red]error:[/] provide a token argument or --file")
-    sys.exit(2)
+            text = fh.read()
+    elif token and token != "-":
+        text = token
+    elif token == "-" or not sys.stdin.isatty():
+        text = sys.stdin.read()
+    else:
+        console.print("[bold red]error:[/] provide a token argument, --file, or pipe it on stdin")
+        sys.exit(2)
+    return _strip_auth_prefix(text.strip())
+
+
+def _strip_auth_prefix(text: str) -> str:
+    """Accept a pasted `Authorization: Bearer <jwt>` line as-is."""
+    if text.lower().startswith("authorization:"):
+        text = text.split(":", 1)[1].strip()
+    if text.lower().startswith("bearer "):
+        text = text[7:].strip()
+    return text
 
 
 def _load_wordlist(path: str) -> list[str]:
@@ -131,7 +145,7 @@ def _print_table(findings: list[dict]) -> None:
     for f in findings:
         counts[f["severity"]] = counts.get(f["severity"], 0) + 1
     summary = "  ".join(f"[{SEVERITY_STYLE.get(sev, '')}]{sev}: {n}[/]" for sev, n in counts.items())
-    console.print(f"\n{len(findings)} findings — {summary}\n")
+    console.print(f"\n{len(findings)} findings" + (f" — {summary}" if summary else "") + "\n")
 
 
 if __name__ == "__main__":

@@ -1,14 +1,22 @@
 # jwtlint
 
 [![CI](https://github.com/ReazGan/jwtlint/actions/workflows/ci.yml/badge.svg)](https://github.com/ReazGan/jwtlint/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/jwtlint)](https://pypi.org/project/jwtlint/)
 
-Offline static security analysis for JWTs (RFC 7519 / RFC 7515). Parses the
-three base64url segments itself — header, payload, signature — no JWT
+Offline static security analysis for JWTs (RFC 7519 / RFC 7515). Paste a
+token from Burp, a log line or an `Authorization` header and get a list of
+what's wrong with it. Parses the three base64url segments itself, no JWT
 library in the analysis path, no network calls.
 
-![jwtlint decoding an alg:none forgery attempt](docs/screenshot.svg)
+![jwtlint flagging a token with a jku header, a kid path traversal and a weak secret](https://raw.githubusercontent.com/ReazGan/jwtlint/main/docs/screenshot.svg)
 
 ## Install
+
+```
+pip install jwtlint
+```
+
+or from source:
 
 ```
 git clone https://github.com/ReazGan/jwtlint
@@ -37,7 +45,7 @@ payload
 ┡━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━┩
 └──────────┴───────┴─────────┘
 
-0 findings —
+0 findings
 ```
 
 An `alg: none` forgery attempt (see the screenshot above for the full run):
@@ -54,6 +62,7 @@ Other flags:
 
 ```
 jwtlint --file token.txt                 # read the token from a file instead of argv
+pbpaste | jwtlint                        # read from stdin ("Bearer ..." prefix is fine)
 jwtlint <token> --expect-alg RS256       # flag RS-to-HS confusion if the token uses HS*
 jwtlint <token> --crack                  # try the built-in weak-secret wordlist
 jwtlint <token> --crack wordlist.txt     # try a custom wordlist
@@ -74,6 +83,15 @@ a plain error message, not a stack trace.
   verification whenever the header says `alg: HS*` can be tricked into
   accepting a token forged with that (public, therefore attacker-known) key
   as the HMAC secret.
+- **header-injection** — key-selection headers the attacker controls:
+  `jku` / `x5u` (verifier fetches the key from a URL, also an SSRF vector),
+  an embedded `jwk` (CVE-2018-0114 style self-signed tokens), an embedded
+  `x5c` chain, and `kid` values that look like path traversal
+  (`../../dev/null`), SQL or shell injection.
+- **sensitive-data** — payload claims that look like passwords, API keys,
+  session ids or personal data (national id, IBAN, phone, card numbers with
+  a Luhn check). Payloads are base64url, not encrypted: anyone holding the
+  token can read them.
 - **claims** — missing `exp` (high, token never expires), an already-expired
   `exp` (info, just noted), missing `iat` (low), `nbf` earlier than `iat`
   (low), and unreasonably long-lived tokens — `exp - iat` over a year by
@@ -83,6 +101,16 @@ a plain error message, not a stack trace.
   compares against the token's actual signature. Ships a built-in list of
   ~50 common weak secrets used by default when `--crack` is passed with no
   file.
+
+## In CI
+
+Exit code `1` on critical/high makes it a one-line gate, e.g. to make sure
+the tokens your test suite issues never carry secrets or skip `exp`:
+
+```yaml
+- run: pip install jwtlint
+- run: python scripts/issue_test_token.py | jwtlint
+```
 
 ## Scope
 
